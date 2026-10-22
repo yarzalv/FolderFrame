@@ -8,6 +8,8 @@ Carpetas para el escritorio de Windows: un icono que se abre en una tarjeta con 
 
 Por [yarzalv](https://github.com/yarzalv)
 
+**[⬇ Descargar FolderFrame.exe](https://github.com/yarzalv/FolderFrame/releases/latest/download/FolderFrame.exe)** · [Todas las versiones](https://github.com/yarzalv/FolderFrame/releases)
+
 </div>
 
 ## Qué hace
@@ -27,7 +29,7 @@ Las carpetas siempre quedan por debajo de tus ventanas, como los iconos normales
 
 ## Uso
 
-1. Ejecuta `FolderFrame.exe`. Aparece un icono en la bandeja del sistema.
+1. [Descarga la última versión](https://github.com/yarzalv/FolderFrame/releases/latest/download/FolderFrame.exe) y ejecuta `FolderFrame.exe` (no necesita instalación ni .NET). Aparece un icono en la bandeja del sistema.
 2. Clic derecho en el icono de la bandeja → **Añadir carpeta…** y elige una carpeta.
 3. Mueve la carpeta con el botón de mover de su tarjeta, o arrastrando el icono si se abre con clic o doble clic.
 4. Para cambiar cómo se abre o su aspecto: engranaje de la tarjeta, o clic derecho sobre la carpeta → **Configuración…**
