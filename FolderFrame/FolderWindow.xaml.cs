@@ -100,11 +100,20 @@ namespace FolderFrame
             _view = CollectionViewSource.GetDefaultView(FileItems);
             FileItems.CollectionChanged += (_, _) => UpdateIconPreviews();
 
-            ClampSavedPosition();
+            // Saved position as is; Window_Loaded makes it visible if the screen is smaller now
             Left = Config.PosX;
             Top = Config.PosY;
             Width = IconWidth;
             Height = IconHeight;
+            // Show desktop (Win+D) and similar commands must never minimize a folder
+            StateChanged += (_, _) =>
+            {
+                if (WindowState == WindowState.Minimized)
+                {
+                    WindowState = WindowState.Normal;
+                    KeepBehind();
+                }
+            };
 
             _expandedCheckTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(25) };
             _expandedCheckTimer.Tick += ExpandedCheckTimer_Tick;
@@ -158,6 +167,10 @@ namespace FolderFrame
                 wp.flags |= SWP_NOZORDER;
                 System.Runtime.InteropServices.Marshal.StructureToPtr(wp, lParam, false);
             }
+            else if (msg == 0x0112 && (wParam.ToInt64() & 0xFFF0) == 0xF020) // WM_SYSCOMMAND, SC_MINIMIZE
+            {
+                handled = true; // a desktop folder has nothing to minimize to
+            }
             return IntPtr.Zero;
         }
 
@@ -178,11 +191,6 @@ namespace FolderFrame
                 };
                 check.Start();
             }
-        }
-
-        private void Window_Closing(object sender, CancelEventArgs e)
-        {
-            SavePositionNow();
         }
 
         protected override void OnClosed(EventArgs e)
@@ -268,18 +276,6 @@ namespace FolderFrame
             LoadFiles(_currentFolderPath);
         }
 
-        private void ClampSavedPosition()
-        {
-            double x = Config.PosX, y = Config.PosY;
-            DesktopShellManager.ClampToVirtualScreen(ref x, ref y, IconWidth, IconHeight);
-            if (Math.Abs(x - Config.PosX) > 0.5 || Math.Abs(y - Config.PosY) > 0.5)
-            {
-                Config.PosX = x;
-                Config.PosY = y;
-                Config.SavePosition();
-            }
-        }
-
         /// <summary>Window position in screen DIPs, from the real window rect.</summary>
         private (double x, double y) ScreenPositionDip()
         {
@@ -291,20 +287,18 @@ namespace FolderFrame
 
         private void Window_LocationChanged(object sender, EventArgs e)
         {
-            // A collapsed icon always persists where it really is, whatever moved it
-            if (_isAnimating || _isExpanded || !IsLoaded || Handle == IntPtr.Zero) return;
+            // Only the user's drags change the saved position (DragIcon saves when the drag ends).
+            // Windows also moves windows on its own when the screen changes size (remote desktop,
+            // AnyDesk, Moonlight, docking): saving those moves lost the layout for good.
+            if (_dragMoving || _isAnimating || _isExpanded || !IsLoaded || Handle == IntPtr.Zero) return;
             var (x, y) = ScreenPositionDip();
-            if (Math.Abs(x - Config.PosX) <= 0.5 && Math.Abs(y - Config.PosY) <= 0.5) return;
-            if (!_dragMoving)
+            if (Math.Abs(x - Config.PosX) > 0.5 || Math.Abs(y - Config.PosY) > 0.5)
             {
-                AppLogger.Log($"[FolderWindow:{Config.DisplayTitle}] Icon moved ({Config.PosX:0.#},{Config.PosY:0.#}) -> ({x:0.#},{y:0.#}) without a drag");
+                AppLogger.Log($"[FolderWindow:{Config.DisplayTitle}] Moved by the system to ({x:0.#},{y:0.#}); saved position ({Config.PosX:0.#},{Config.PosY:0.#}) kept.");
             }
-            Config.PosX = x;
-            Config.PosY = y;
-            Config.SavePosition();
         }
 
-        /// <summary>Saves where the icon really is (used on exit, so the next start shows it there).</summary>
+        /// <summary>Saves where the icon really is. Only called after the user moved it.</summary>
         public void SavePositionNow()
         {
             try
@@ -327,7 +321,12 @@ namespace FolderFrame
             }
         }
 
-        /// <summary>Moves the collapsed icon back to its saved position if the window is elsewhere.</summary>
+        /// <summary>
+        /// Moves the collapsed icon back to its saved position. If that spot is off the current
+        /// screen (smaller resolution in a remote session, unplugged monitor), it is shown at the
+        /// nearest visible place instead, without touching the saved position, so the layout comes
+        /// back when the screen does.
+        /// </summary>
         public void RestoreSavedPosition(string reason)
         {
             try
@@ -336,12 +335,19 @@ namespace FolderFrame
                 var h = Handle;
                 if (h == IntPtr.Zero || !GetWindowRect(h, out RECT r)) return;
                 double scale = DpiScale;
+                int w = r.Right - r.Left, hgt = r.Bottom - r.Top;
                 int targetX = (int)Math.Round(Config.PosX * scale);
                 int targetY = (int)Math.Round(Config.PosY * scale);
-                if (Math.Abs(r.Left - targetX) > 1 || Math.Abs(r.Top - targetY) > 1)
+
+                var work = System.Windows.Forms.Screen.FromRectangle(new System.Drawing.Rectangle(targetX, targetY, w, hgt)).WorkingArea;
+                int visibleX = Math.Clamp(targetX, work.Left, Math.Max(work.Left, work.Right - w));
+                int visibleY = Math.Clamp(targetY, work.Top, Math.Max(work.Top, work.Bottom - hgt));
+                bool temporary = visibleX != targetX || visibleY != targetY;
+
+                if (Math.Abs(r.Left - visibleX) > 1 || Math.Abs(r.Top - visibleY) > 1)
                 {
-                    AppLogger.Log($"[FolderWindow:{Config.DisplayTitle}] Icon was at px ({r.Left},{r.Top}), saved px ({targetX},{targetY}); restoring ({reason}).");
-                    SetWindowPos(h, IntPtr.Zero, targetX, targetY, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
+                    AppLogger.Log($"[FolderWindow:{Config.DisplayTitle}] Icon at px ({r.Left},{r.Top}) -> ({visibleX},{visibleY}) ({reason}{(temporary ? "; saved spot is off this screen, kept for later" : "")}).");
+                    SetWindowPos(h, IntPtr.Zero, visibleX, visibleY, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
                 }
                 KeepBehind();
             }

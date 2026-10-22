@@ -28,6 +28,10 @@ namespace FolderFrame
         private DateTime _lastDoubleClickTime = DateTime.MinValue;
         private SettingsWindow? _settingsWindow;
         private bool _servicesInitialized;
+        private IntPtr _foregroundHook;
+        private Interop.WinEventDelegate? _foregroundProc; // kept in a field so the GC can't collect it
+        private DispatcherTimer? _foregroundFollowUp;
+        private int _foregroundFollowUpTicks;
 
         public MainWindow()
         {
@@ -195,6 +199,8 @@ namespace FolderFrame
             _lifecycleManager.SystemShuttingDown += () => Dispatcher.Invoke(() => Controller.SaveAll());
             _lifecycleManager.Initialize();
 
+            StartForegroundHook();
+
             // Cheap health check: recreate a folder window if its handle died
             _watchdog = new DispatcherTimer(DispatcherPriority.Background) { Interval = TimeSpan.FromSeconds(5) };
             _watchdog.Tick += (_, _) =>
@@ -212,8 +218,38 @@ namespace FolderFrame
             Hide();
         }
 
+        /// <summary>
+        /// Show desktop (Win+D) raises the desktop above every normal window, which hid the
+        /// folders. On each foreground change they are put back just above the desktop, and again
+        /// shortly after because the shell finishes raising the desktop with an animation.
+        /// </summary>
+        private void StartForegroundHook()
+        {
+            _foregroundFollowUp = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
+            _foregroundFollowUp.Tick += (_, _) =>
+            {
+                Controller.KeepAllAboveDesktop();
+                if (++_foregroundFollowUpTicks >= 2) _foregroundFollowUp.Stop();
+            };
+
+            _foregroundProc = (_, _, hwnd, _, _, _, _) =>
+            {
+                if (hwnd == IntPtr.Zero) return;
+                Controller.KeepAllAboveDesktop();
+                _foregroundFollowUpTicks = 0;
+                _foregroundFollowUp.Stop();
+                _foregroundFollowUp.Start();
+            };
+            // Out-of-context hooks are delivered on this (UI) thread through its message loop
+            _foregroundHook = SetWinEventHook(EVENT_SYSTEM_FOREGROUND, EVENT_SYSTEM_FOREGROUND, IntPtr.Zero, _foregroundProc,
+                0, 0, WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS);
+            if (_foregroundHook == IntPtr.Zero) AppLogger.Log("[MainWindow] Foreground hook could not be installed.");
+        }
+
         protected override void OnClosed(EventArgs e)
         {
+            if (_foregroundHook != IntPtr.Zero) UnhookWinEvent(_foregroundHook);
+            _foregroundFollowUp?.Stop();
             _watchdog?.Stop();
             _lifecycleManager?.Dispose();
             StopMouseHook();

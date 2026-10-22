@@ -93,9 +93,10 @@ namespace FolderFrame.Core
 
         public void SaveAll()
         {
+            // Config holds the position the user chose; where the window happens to be now may be a
+            // temporary spot Windows picked after a screen change
             foreach (var w in Windows.ToList())
             {
-                w.SavePositionNow();
                 w.Config.Save();
             }
         }
@@ -138,6 +139,17 @@ namespace FolderFrame.Core
                 if (_visible && !w.IsVisible) w.Show();
                 w.RestoreSavedPosition("refresh");
             }
+        }
+
+        /// <summary>
+        /// Re-places every collapsed icon just above the desktop. Called whenever another window
+        /// becomes the foreground one: after Show desktop (Win+D) the desktop is raised over normal
+        /// windows, and without this the folders stayed hidden under it.
+        /// </summary>
+        public void KeepAllAboveDesktop()
+        {
+            if (!_visible) return;
+            foreach (var w in Windows) w.KeepBehind();
         }
 
         public bool AnyBusy => Windows.Any(w => w.IsBusy);

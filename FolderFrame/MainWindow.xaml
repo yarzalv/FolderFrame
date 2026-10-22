@@ -6,6 +6,7 @@
         Title="FolderFrame" Height="0" Width="0"
         Initialized="Window_Initialized" Loaded="Window_Loaded">
     <tray:NotifyIcon x:Name="TrayIcon" FocusOnLeftClick="True" MenuOnRightClick="True" TooltipText="FolderFrame"
+                     Icon="pack://application:,,,/ico.png"
                      LeftDoubleClick="TrayIcon_LeftDoubleClick">
         <tray:NotifyIcon.Menu>
             <ContextMenu MinWidth="200">
