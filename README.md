@@ -4,7 +4,7 @@
 
 # FolderFrame
 
-Carpetas para el escritorio de Windows: un icono que se abre en una tarjeta con tus apps.
+Carpetas para el escritorio de Windows similares al estilo de android/ios.
 
 Por [yarzalv](https://github.com/yarzalv)
 
