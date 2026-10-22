@@ -68,6 +68,8 @@ namespace FolderFrame
         private RECT _anchorRectPx;          // collapsed icon rect captured when the card opens
         private bool _hasAnchorRectPx;
         private IntPtr _foregroundAtExpand = IntPtr.Zero;
+        private double _expandScale = 1.0;      // display scale when the card opened
+        private double _thumbnailScale = 0;     // display scale the current thumbnails were made for
         private bool _suppressHoverUntilLeave;
         private DateTime _lastCollapseTime = DateTime.MinValue;
         private readonly DispatcherTimer _expandedCheckTimer;
@@ -170,6 +172,16 @@ namespace FolderFrame
             else if (msg == 0x0112 && (wParam.ToInt64() & 0xFFF0) == 0xF020) // WM_SYSCOMMAND, SC_MINIMIZE
             {
                 handled = true; // a desktop folder has nothing to minimize to
+            }
+            else if (msg == 0x02E0) // WM_DPICHANGED: display scale changed (or the icon reached another monitor)
+            {
+                // Let WPF handle it first, then fix size, position and thumbnails ourselves:
+                // the collapsed icon kept its old size until it was opened and closed.
+                Dispatcher.BeginInvoke(DispatcherPriority.Background, () =>
+                {
+                    if (_isExpanded || _isAnimating) Collapse(instant: true);
+                    RestoreSavedPosition("display scale changed");
+                });
             }
             return IntPtr.Zero;
         }
@@ -335,7 +347,18 @@ namespace FolderFrame
                 var h = Handle;
                 if (h == IntPtr.Zero || !GetWindowRect(h, out RECT r)) return;
                 double scale = DpiScale;
-                int w = r.Right - r.Left, hgt = r.Bottom - r.Top;
+                int w = (int)Math.Round(IconWidth * scale), hgt = (int)Math.Round(IconHeight * scale);
+
+                // After a display-scale change the window can keep its old pixel size
+                if (Math.Abs(r.Right - r.Left - w) > 1 || Math.Abs(r.Bottom - r.Top - hgt) > 1)
+                {
+                    Width = IconWidth;
+                    Height = IconHeight;
+                    SetWindowPos(h, IntPtr.Zero, 0, 0, w, hgt, SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
+                    AppLogger.Log($"[FolderWindow:{Config.DisplayTitle}] Resized icon to {w}x{hgt} px for scale {scale:0.##} ({reason}).");
+                }
+                // Thumbnails are rendered for a given scale; redo them if it changed
+                if (_thumbnailScale > 0 && Math.Abs(scale - _thumbnailScale) > 0.01) ReloadFolder();
                 int targetX = (int)Math.Round(Config.PosX * scale);
                 int targetY = (int)Math.Round(Config.PosY * scale);
 
@@ -509,6 +532,8 @@ namespace FolderFrame
                 OpenTrigger.DoubleClick => _iconDownClickCount >= 2,
                 _ => true, // Click, and Hover as a fallback when hovering didn't open it
             };
+            // Touch has no hover and double taps are awkward: a tap always opens
+            if (e.StylusDevice != null) open = true;
             if (open) Expand();
         }
 
@@ -560,20 +585,21 @@ namespace FolderFrame
 
             Width = targetW;
             Height = targetH;
+            _expandScale = scale;
             _allowZOrderChange = true;
             try
             {
+                // Above everything but NOT activated: opening on hover must not take the keyboard
+                // away from the app you're typing in. A click inside the card (or the search)
+                // activates it, since WS_EX_NOACTIVATE was just removed.
                 Topmost = true;
-                SetWindowPos(h, HWND_TOPMOST, leftPx, topPx, wPx, hPx, SWP_SHOWWINDOW);
-                SetForegroundWindow(h);
-                Activate();
+                SetWindowPos(h, HWND_TOPMOST, leftPx, topPx, wPx, hPx, SWP_SHOWWINDOW | SWP_NOACTIVATE);
             }
             finally
             {
                 _allowZOrderChange = false;
             }
-            // Only a *change* of foreground window after this point means the user switched app;
-            // if SetForegroundWindow was refused the foreground stays the same.
+            // Only a *change* of foreground window after this point means the user switched app
             _foregroundAtExpand = GetForegroundWindow();
 
             IconCollapsedContainer.Visibility = Visibility.Collapsed;
@@ -676,17 +702,19 @@ namespace FolderFrame
             int exStyle = (int)GetWindowLong(h, GWL_EXSTYLE);
             SetWindowLong(h, GWL_EXSTYLE, (exStyle & ~0x00000008) | WS_EX_NOACTIVATE);
 
-            // Back to the exact physical position the icon had before opening
-            if (_hasAnchorRectPx)
+            // Back to the exact physical position the icon had before opening, unless the display
+            // scale changed meanwhile: then that pixel position is stale and the saved one is used
+            if (_hasAnchorRectPx && Math.Abs(DpiScale - _expandScale) < 0.01)
             {
                 SetWindowPos(h, IntPtr.Zero, _anchorRectPx.Left, _anchorRectPx.Top, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
-                _hasAnchorRectPx = false;
             }
             else
             {
                 double scale = DpiScale;
-                SetWindowPos(h, IntPtr.Zero, (int)Math.Round(Config.PosX * scale), (int)Math.Round(Config.PosY * scale), 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
+                SetWindowPos(h, IntPtr.Zero, (int)Math.Round(Config.PosX * scale), (int)Math.Round(Config.PosY * scale),
+                    (int)Math.Round(IconWidth * scale), (int)Math.Round(IconHeight * scale), SWP_NOZORDER | SWP_NOACTIVATE);
             }
+            _hasAnchorRectPx = false;
 
             _isExpanded = false;
             _isAnimating = false;
@@ -828,6 +856,7 @@ namespace FolderFrame
             _loadCts.Cancel();
             _loadCts = new CancellationTokenSource();
             var token = _loadCts.Token;
+            _thumbnailScale = DpiScale;
 
             BackButton.Visibility = string.Equals(path, Config.Folder, StringComparison.OrdinalIgnoreCase) ? Visibility.Collapsed : Visibility.Visible;
             if (!Directory.Exists(path))
@@ -1041,7 +1070,7 @@ namespace FolderFrame
         private void AppItem_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
             if (sender is not Border border || border.DataContext is not FileItem item) return;
-            if (e.ClickCount == 2)
+            if (e.ClickCount == 2 && e.StylusDevice == null)
             {
                 _itemDragCandidate = null;
                 OpenItem(item);
@@ -1051,8 +1080,22 @@ namespace FolderFrame
             _itemDownPos = e.GetPosition(this);
         }
 
+        /// <summary>Touch: a tap (finger down and up without moving) opens the app.</summary>
+        private void AppItem_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+        {
+            if (e.StylusDevice == null || sender is not Border border || border.DataContext is not FileItem item) return;
+            Vector diff = e.GetPosition(this) - _itemDownPos;
+            if (_itemDragCandidate == item && Math.Abs(diff.X) < 8 && Math.Abs(diff.Y) < 8)
+            {
+                _itemDragCandidate = null;
+                OpenItem(item);
+            }
+        }
+
         private void AppItem_MouseMove(object sender, MouseEventArgs e)
         {
+            // With a finger, dragging scrolls the list instead of dragging the app out
+            if (e.StylusDevice != null) return;
             if (_itemDragCandidate == null || e.LeftButton != MouseButtonState.Pressed || sender is not Border border) return;
             Vector diff = e.GetPosition(this) - _itemDownPos;
             if (Math.Abs(diff.X) < 8 && Math.Abs(diff.Y) < 8) return;
@@ -1240,6 +1283,9 @@ namespace FolderFrame
 
             SearchBar.Visibility = Visibility.Visible;
             SearchBarScale.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(0, 1, duration) { EasingFunction = ease });
+            // Typing needs the keyboard: take it now (the card opens without activating)
+            SetForegroundWindow(Handle);
+            Activate();
             FilterTextBox.Focus();
         }
 

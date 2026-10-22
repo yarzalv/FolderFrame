@@ -32,6 +32,7 @@
                     ToolTip="{Binding DisplayName}"
                     MouseLeftButtonDown="AppItem_MouseLeftButtonDown"
                     MouseMove="AppItem_MouseMove"
+                    MouseLeftButtonUp="AppItem_MouseLeftButtonUp"
                     MouseEnter="AppItem_MouseEnter"
                     MouseLeave="AppItem_MouseLeave"
                     MouseRightButtonUp="AppItem_MouseRightButtonUp">
@@ -212,6 +213,7 @@
                 <ScrollViewer Grid.Row="1"
                               x:Name="ItemsScrollViewer"
                               PreviewMouseWheel="ItemsScrollViewer_PreviewMouseWheel"
+                              PanningMode="VerticalOnly"
                               Margin="6,6,4,8"
                               Focusable="False"
                               HorizontalScrollBarVisibility="Disabled"

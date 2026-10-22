@@ -32,6 +32,7 @@ namespace FolderFrame
         private Interop.WinEventDelegate? _foregroundProc; // kept in a field so the GC can't collect it
         private DispatcherTimer? _foregroundFollowUp;
         private int _foregroundFollowUpTicks;
+        private bool _desktopWasForeground;
 
         public MainWindow()
         {
@@ -49,7 +50,27 @@ namespace FolderFrame
                 string exePath = Environment.ProcessPath!;
                 Task.Run(() => Controller.Settings.EnsureAutoRun(AutoRunName, exePath));
             }
-            if (DoubleClickToHide) StartMouseHook();
+            UpdateMouseHook(IsDesktopWindow(GetForegroundWindow()));
+            WaitForDesktopThenPlaceFolders();
+        }
+
+        /// <summary>
+        /// At logon FolderFrame can start before Explorer has created the desktop; a desktop window
+        /// created later lands on top of the folders and hides them. Once it exists, put the folders
+        /// back above it (and once more a bit later, while Explorer finishes starting up).
+        /// </summary>
+        private void WaitForDesktopThenPlaceFolders()
+        {
+            Task.Run(async () =>
+            {
+                var shell = await DesktopShellManager.WaitForDesktopShellAsync(TimeSpan.FromMinutes(2));
+                if (shell == IntPtr.Zero) return;
+                foreach (int delayMs in new[] { 0, 3000 })
+                {
+                    await Task.Delay(delayMs);
+                    Dispatcher.Invoke(() => Controller.RefreshWindows());
+                }
+            });
         }
 
         #region Settings
@@ -72,8 +93,7 @@ namespace FolderFrame
             set
             {
                 Controller.Settings.WriteToRegistryRoot("DoubleClickToHide", value.ToString());
-                if (value) StartMouseHook();
-                else StopMouseHook();
+                UpdateMouseHook(IsDesktopWindow(GetForegroundWindow()));
             }
         }
 
@@ -235,11 +255,21 @@ namespace FolderFrame
             _foregroundProc = (_, _, hwnd, _, _, _, _) =>
             {
                 if (hwnd == IntPtr.Zero) return;
+                bool desktopNow = IsDesktopWindow(hwnd);
+                bool desktopBefore = _desktopWasForeground;
+                _desktopWasForeground = desktopNow;
+                UpdateMouseHook(desktopNow);
+
+                // Only switching to or from the desktop can leave folders hidden under it (Win+D)
+                // or above other apps (restoring from Win+D). Switching between apps or games
+                // needs nothing, so nothing is done then.
+                if (!desktopNow && !desktopBefore) return;
                 Controller.KeepAllAboveDesktop();
                 _foregroundFollowUpTicks = 0;
                 _foregroundFollowUp.Stop();
                 _foregroundFollowUp.Start();
             };
+            _desktopWasForeground = IsDesktopWindow(GetForegroundWindow());
             // Out-of-context hooks are delivered on this (UI) thread through its message loop
             _foregroundHook = SetWinEventHook(EVENT_SYSTEM_FOREGROUND, EVENT_SYSTEM_FOREGROUND, IntPtr.Zero, _foregroundProc,
                 0, 0, WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS);
@@ -260,10 +290,22 @@ namespace FolderFrame
 
         #region Double click on the desktop
 
+        /// <summary>
+        /// The global mouse hook is only needed to catch double clicks on the desktop, so it runs
+        /// only while the desktop is the active window (and the option is on). A permanent global
+        /// hook is what makes antivirus heuristics suspicious of an unsigned app.
+        /// </summary>
+        private void UpdateMouseHook(bool desktopIsForeground)
+        {
+            if (DoubleClickToHide && desktopIsForeground) StartMouseHook();
+            else StopMouseHook();
+        }
+
         private void StartMouseHook()
         {
             if (_mouseHook != null) return;
-            _mouseHook = new LowLevelMouseHook { AddKeyboardKeys = true };
+            // Mouse buttons only: no keyboard state is read
+            _mouseHook = new LowLevelMouseHook { AddKeyboardKeys = false };
             _mouseHook.DoubleClick += HandleGlobalDoubleClick;
             _mouseHook.Start();
         }
