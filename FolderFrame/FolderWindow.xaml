@@ -120,6 +120,7 @@
 
         <!-- Expanded card -->
         <Border x:Name="IconExpandedCard"
+                PreviewMouseDown="IconExpandedCard_PreviewMouseDown"
                 Visibility="Collapsed"
                 Opacity="0"
                 CornerRadius="8"

@@ -539,11 +539,47 @@ namespace FolderFrame
 
         #region Expand / collapse
 
-        /// <summary>Opens the card (public entry point used by the tray and settings).</summary>
+        /// <summary>Opens the card in front of everything (asked for explicitly: tray, settings list).</summary>
         public void Open()
         {
             if (!IsVisible) Show();
             Expand();
+            BringCardToFront();
+        }
+
+        /// <summary>
+        /// The window just above the stack of FolderFrame windows that sits on the desktop, i.e.
+        /// the lowest app window. Inserting after it puts a window above every folder icon but
+        /// still below all apps. Zero means nothing is above (use HWND_TOP).
+        /// </summary>
+        private static IntPtr WindowAboveFolderStack()
+        {
+            IntPtr shellView = DesktopShellManager.GetDesktopShellView();
+            IntPtr desktopRoot = shellView != IntPtr.Zero ? GetAncestor(shellView, GA_ROOT) : IntPtr.Zero;
+            if (desktopRoot == IntPtr.Zero) desktopRoot = FindWindow("Progman", null!);
+            if (desktopRoot == IntPtr.Zero) return IntPtr.Zero;
+            IntPtr w = Interop.GetWindow(desktopRoot, GW_HWNDPREV);
+            while (w != IntPtr.Zero && IsOurWindow(w)) w = Interop.GetWindow(w, GW_HWNDPREV);
+            return w;
+        }
+
+        /// <summary>Raises the open card above all app windows and (normally) gives it the keyboard.</summary>
+        private void BringCardToFront(bool activate = true)
+        {
+            if (!_isExpanded && !_isAnimating) return;
+            var h = Handle;
+            SetZOrder(HWND_TOP);
+            if (!activate) return;
+            SetForegroundWindow(h);
+            Activate();
+            // Our own window is now the foreground one; don't read that as "the user switched app"
+            _foregroundAtExpand = GetForegroundWindow();
+        }
+
+        private void IconExpandedCard_PreviewMouseDown(object sender, MouseButtonEventArgs e)
+        {
+            // Clicking a card that opened behind your apps brings it in front of them
+            BringCardToFront();
         }
 
         private void Expand()
@@ -584,19 +620,10 @@ namespace FolderFrame
             Width = targetW;
             Height = targetH;
             _expandScale = scale;
-            _allowZOrderChange = true;
-            try
-            {
-                // Above everything but NOT activated: opening on hover must not take the keyboard
-                // away from the app you're typing in. A click inside the card (or the search)
-                // activates it, since WS_EX_NOACTIVATE was just removed.
-                Topmost = true;
-                SetWindowPos(h, HWND_TOPMOST, leftPx, topPx, wPx, hPx, SWP_SHOWWINDOW | SWP_NOACTIVATE);
-            }
-            finally
-            {
-                _allowZOrderChange = false;
-            }
+            // Open in the folders' layer: above the desktop and every other folder icon, but below
+            // all apps, and NOT activated (opening on hover must not take the keyboard from the app
+            // you're typing in). Clicking the card raises and activates it (BringCardToFront).
+            SetZOrder(WindowAboveFolderStack(), leftPx, topPx, wPx, hPx, moveAndSize: true, extraFlags: SWP_SHOWWINDOW);
             // Only a *change* of foreground window after this point means the user switched app
             _foregroundAtExpand = GetForegroundWindow();
 
@@ -1191,7 +1218,12 @@ namespace FolderFrame
         {
             if (!e.Data.GetDataPresent(DataFormats.FileDrop)) return;
             // Open the card while dragging over the icon, so the drop target is visible
-            if (!_isExpanded && !_isAnimating && !_isDragging) Expand();
+            if (!_isExpanded && !_isAnimating && !_isDragging)
+            {
+                Expand();
+                // In front so the drop target is visible, without taking focus mid-drag
+                BringCardToFront(activate: false);
+            }
         }
 
         private void Window_Drop(object sender, DragEventArgs e)
