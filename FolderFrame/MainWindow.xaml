@@ -1,0 +1,22 @@
+﻿<Window x:Class="FolderFrame.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:tray="http://schemas.lepo.co/wpfui/2022/xaml/tray"
+        xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+        Title="FolderFrame" Height="0" Width="0"
+        Initialized="Window_Initialized" Loaded="Window_Loaded">
+    <tray:NotifyIcon x:Name="TrayIcon" FocusOnLeftClick="True" MenuOnRightClick="True" TooltipText="FolderFrame"
+                     LeftDoubleClick="TrayIcon_LeftDoubleClick">
+        <tray:NotifyIcon.Menu>
+            <ContextMenu MinWidth="200">
+                <ui:MenuItem x:Name="AddFolderMenuItem" Header="Añadir carpeta…" Icon="{ui:SymbolIcon FolderAdd20}" Click="AddFolder_Click"/>
+                <ui:MenuItem Header="Configuración" Icon="{ui:SymbolIcon Settings20}" Click="Settings_Click"/>
+                <ui:MenuItem x:Name="ToggleVisibilityMenuItem" Header="Ocultar carpetas" Icon="{ui:SymbolIcon EyeOff20}" Click="ToggleVisibility_Click"/>
+                <Separator/>
+                <ui:MenuItem x:Name="StartOnLoginMenuItem" Header="Iniciar con Windows" IsCheckable="True" Click="StartOnLoginMenuItem_Click"/>
+                <Separator/>
+                <ui:MenuItem Header="Salir" Icon="{ui:SymbolIcon ArrowExit20}" Click="Exit_Click"/>
+            </ContextMenu>
+        </tray:NotifyIcon.Menu>
+    </tray:NotifyIcon>
+</Window>

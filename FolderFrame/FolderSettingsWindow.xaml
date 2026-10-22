@@ -1,0 +1,151 @@
+<ui:FluentWindow x:Class="FolderFrame.FolderSettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+        Title="Configuración de la carpeta"
+        Width="460" Height="640"
+        MinWidth="420" MinHeight="420"
+        ExtendsContentIntoTitleBar="True"
+        WindowBackdropType="Mica"
+        WindowStartupLocation="CenterScreen"
+        ResizeMode="CanResize">
+    <ui:FluentWindow.Resources>
+        <Style x:Key="SectionTitle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="FontFamily" Value="Segoe UI Semibold"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}"/>
+            <Setter Property="Margin" Value="0,18,0,8"/>
+        </Style>
+        <Style x:Key="FieldLabel" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}"/>
+            <Setter Property="Margin" Value="0,0,0,4"/>
+        </Style>
+        <Style x:Key="Row" TargetType="Border">
+            <Setter Property="Background" Value="{DynamicResource CardBackgroundFillColorDefaultBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="6"/>
+            <Setter Property="Padding" Value="14,10"/>
+            <Setter Property="Margin" Value="0,0,0,4"/>
+        </Style>
+    </ui:FluentWindow.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <ui:TitleBar Grid.Row="0" x:Name="TitleBar" Title="Configuración de la carpeta" ShowMaximize="False" ShowMinimize="False"/>
+
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="20,4,20,12">
+            <StackPanel>
+                <TextBlock Text="General" Style="{StaticResource SectionTitle}" Margin="0,4,0,8"/>
+
+                <TextBlock Text="Nombre" Style="{StaticResource FieldLabel}"/>
+                <ui:TextBox x:Name="TitleBox" PlaceholderText="Nombre de la carpeta" Margin="0,0,0,12"/>
+
+                <TextBlock Text="Carpeta" Style="{StaticResource FieldLabel}"/>
+                <Grid Margin="0,0,0,12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <ui:TextBox x:Name="FolderBox" IsReadOnly="True"/>
+                    <ui:Button Grid.Column="1" Content="Cambiar…" Margin="8,0,0,0" Click="ChangeFolder_Click"/>
+                </Grid>
+
+                <TextBlock Text="Abrir la carpeta" Style="{StaticResource FieldLabel}"/>
+                <ComboBox x:Name="OpenTriggerBox" Margin="0,0,0,4">
+                    <ComboBoxItem Content="Al pasar el cursor por encima"/>
+                    <ComboBoxItem Content="Con un clic"/>
+                    <ComboBoxItem Content="Con doble clic"/>
+                </ComboBox>
+                <TextBlock x:Name="OpenTriggerHint" FontSize="11" TextWrapping="Wrap" Foreground="{DynamicResource TextFillColorTertiaryBrush}" Margin="0,0,0,4"/>
+
+                <TextBlock Text="Tamaño" Style="{StaticResource SectionTitle}"/>
+                <Border Style="{StaticResource Row}">
+                    <StackPanel>
+                        <DockPanel>
+                            <TextBlock Text="Ancho de la tarjeta" VerticalAlignment="Center"/>
+                            <TextBlock x:Name="CardWidthValue" DockPanel.Dock="Right" HorizontalAlignment="Right" Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+                        </DockPanel>
+                        <Slider x:Name="CardWidthSlider" Minimum="320" Maximum="720" TickFrequency="10" IsSnapToTickEnabled="True" Margin="0,6,0,0"/>
+                    </StackPanel>
+                </Border>
+                <Border Style="{StaticResource Row}">
+                    <StackPanel>
+                        <DockPanel>
+                            <TextBlock Text="Alto de la tarjeta" VerticalAlignment="Center"/>
+                            <TextBlock x:Name="CardHeightValue" DockPanel.Dock="Right" HorizontalAlignment="Right" Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+                        </DockPanel>
+                        <Slider x:Name="CardHeightSlider" Minimum="280" Maximum="720" TickFrequency="10" IsSnapToTickEnabled="True" Margin="0,6,0,0"/>
+                    </StackPanel>
+                </Border>
+                <Border Style="{StaticResource Row}">
+                    <StackPanel>
+                        <DockPanel>
+                            <TextBlock Text="Tamaño de los iconos" VerticalAlignment="Center"/>
+                            <TextBlock x:Name="IconSizeValue" DockPanel.Dock="Right" HorizontalAlignment="Right" Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+                        </DockPanel>
+                        <Slider x:Name="IconSizeSlider" Minimum="24" Maximum="64" TickFrequency="4" IsSnapToTickEnabled="True" Margin="0,6,0,0"/>
+                    </StackPanel>
+                </Border>
+
+                <TextBlock Text="Contenido" Style="{StaticResource SectionTitle}"/>
+                <TextBlock Text="Ordenar por" Style="{StaticResource FieldLabel}"/>
+                <Grid Margin="0,0,0,12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="8"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <ComboBox x:Name="SortFieldBox">
+                        <ComboBoxItem Content="Nombre" Tag="1"/>
+                        <ComboBoxItem Content="Fecha de modificación" Tag="3"/>
+                        <ComboBoxItem Content="Fecha de creación" Tag="5"/>
+                        <ComboBoxItem Content="Tipo" Tag="7"/>
+                        <ComboBoxItem Content="Tamaño" Tag="9"/>
+                    </ComboBox>
+                    <ComboBox x:Name="SortDirectionBox" Grid.Column="2">
+                        <ComboBoxItem Content="Ascendente"/>
+                        <ComboBoxItem Content="Descendente"/>
+                    </ComboBox>
+                </Grid>
+                <TextBlock Text="Subcarpetas" Style="{StaticResource FieldLabel}"/>
+                <ComboBox x:Name="FolderOrderBox" Margin="0,0,0,12">
+                    <ComboBoxItem Content="Mezcladas con los archivos"/>
+                    <ComboBoxItem Content="Primero"/>
+                    <ComboBoxItem Content="Al final"/>
+                </ComboBox>
+
+                <Border Style="{StaticResource Row}">
+                    <ui:ToggleSwitch x:Name="OpenSubfoldersInsideSwitch" Content="Abrir subcarpetas dentro de la tarjeta"/>
+                </Border>
+                <Border Style="{StaticResource Row}">
+                    <ui:ToggleSwitch x:Name="ShowShortcutArrowSwitch" Content="Mostrar la flecha de acceso directo"/>
+                </Border>
+                <Border Style="{StaticResource Row}">
+                    <ui:ToggleSwitch x:Name="ShowFileExtensionSwitch" Content="Mostrar extensiones de archivo"/>
+                </Border>
+                <Border Style="{StaticResource Row}">
+                    <ui:ToggleSwitch x:Name="ShowHiddenFilesSwitch" Content="Mostrar archivos ocultos"/>
+                </Border>
+
+                <TextBlock Text="Posición" Style="{StaticResource SectionTitle}"/>
+                <Border Style="{StaticResource Row}">
+                    <ui:ToggleSwitch x:Name="LockedSwitch" Content="Bloquear posición en el escritorio"/>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+
+        <Border Grid.Row="2" Padding="20,12" BorderThickness="0,1,0,0" BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}">
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                <ui:Button Content="Cancelar" Width="96" Click="Cancel_Click"/>
+                <ui:Button Content="Guardar" Width="96" Margin="8,0,0,0" Appearance="Primary" Click="Save_Click"/>
+            </StackPanel>
+        </Border>
+    </Grid>
+</ui:FluentWindow>

@@ -1,0 +1,240 @@
+<Window x:Class="FolderFrame.FolderWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+        Title="FolderFrame"
+        Width="84" Height="104"
+        Background="Transparent"
+        AllowsTransparency="True"
+        WindowStyle="None"
+        ResizeMode="NoResize"
+        ShowInTaskbar="False"
+        ShowActivated="False"
+        AllowDrop="True"
+        FontFamily="Segoe UI"
+        Drop="Window_Drop"
+        DragEnter="Window_DragEnter"
+        MouseEnter="Window_MouseEnter"
+        MouseLeave="Window_MouseLeave"
+        LocationChanged="Window_LocationChanged"
+        Loaded="Window_Loaded"
+        Closing="Window_Closing">
+
+    <Window.Resources>
+        <!-- Size of app icons inside the card; updated from the folder settings -->
+        <sys:Double xmlns:sys="clr-namespace:System;assembly=mscorlib" x:Key="ItemIconSize">40</sys:Double>
+        <sys:Double xmlns:sys="clr-namespace:System;assembly=mscorlib" x:Key="ItemWidth">76</sys:Double>
+
+        <DataTemplate x:Key="AppItemTemplate">
+            <Border Background="Transparent"
+                    Margin="2"
+                    Padding="4,8,4,6"
+                    CornerRadius="6"
+                    ToolTip="{Binding DisplayName}"
+                    MouseLeftButtonDown="AppItem_MouseLeftButtonDown"
+                    MouseMove="AppItem_MouseMove"
+                    MouseEnter="AppItem_MouseEnter"
+                    MouseLeave="AppItem_MouseLeave"
+                    MouseRightButtonUp="AppItem_MouseRightButtonUp">
+                <StackPanel Orientation="Vertical" HorizontalAlignment="Center" Width="{DynamicResource ItemWidth}">
+                    <Image Source="{Binding Thumbnail}"
+                           SnapsToDevicePixels="True"
+                           RenderOptions.BitmapScalingMode="HighQuality"
+                           UseLayoutRounding="True"
+                           Width="{DynamicResource ItemIconSize}" Height="{DynamicResource ItemIconSize}"
+                           HorizontalAlignment="Center"/>
+                    <TextBlock Text="{Binding DisplayName}"
+                               FontSize="12"
+                               Foreground="#E6FFFFFF"
+                               Margin="0,6,0,0"
+                               TextAlignment="Center"
+                               TextWrapping="Wrap"
+                               MaxHeight="32"
+                               TextTrimming="CharacterEllipsis"/>
+                </StackPanel>
+            </Border>
+        </DataTemplate>
+
+        <!-- Flat icon button used in the card header -->
+        <Style x:Key="CardButton" TargetType="Border">
+            <Setter Property="Width" Value="30"/>
+            <Setter Property="Height" Value="30"/>
+            <Setter Property="CornerRadius" Value="5"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#17FFFFFF"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+    </Window.Resources>
+
+    <Grid>
+        <!-- Collapsed folder icon -->
+        <Grid x:Name="IconCollapsedContainer"
+              HorizontalAlignment="Center"
+              VerticalAlignment="Center"
+              Width="84"
+              Height="104"
+              Background="Transparent"
+              MouseLeftButtonDown="IconCollapsed_MouseLeftButtonDown"
+              MouseMove="IconCollapsed_MouseMove"
+              MouseLeftButtonUp="IconCollapsed_MouseLeftButtonUp"
+              MouseRightButtonUp="FolderMenu_MouseRightButtonUp">
+            <StackPanel Orientation="Vertical" HorizontalAlignment="Center" VerticalAlignment="Center">
+                <Border x:Name="IconSquircle"
+                        Width="64" Height="64"
+                        CornerRadius="14"
+                        Background="#99202024"
+                        BorderBrush="#24FFFFFF"
+                        BorderThickness="1">
+                    <Border.Effect>
+                        <DropShadowEffect BlurRadius="8" Direction="270" ShadowDepth="1" Opacity="0.3" Color="#000000"/>
+                    </Border.Effect>
+                    <Grid Margin="8">
+                        <UniformGrid Rows="2" Columns="2">
+                            <Image x:Name="MiniPreview0" Margin="2" Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality"/>
+                            <Image x:Name="MiniPreview1" Margin="2" Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality"/>
+                            <Image x:Name="MiniPreview2" Margin="2" Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality"/>
+                            <Image x:Name="MiniPreview3" Margin="2" Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality"/>
+                        </UniformGrid>
+                        <ui:SymbolIcon x:Name="EmptyFolderIcon" Symbol="Folder24" Foreground="White" Opacity="0.5" FontSize="26" Visibility="Collapsed" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Grid>
+                </Border>
+
+                <!-- Label styled like a regular desktop icon label -->
+                <TextBlock x:Name="IconCollapsedTitle"
+                           FontSize="12"
+                           Foreground="White"
+                           TextAlignment="Center"
+                           TextTrimming="CharacterEllipsis"
+                           MaxWidth="82"
+                           Margin="0,5,0,0">
+                    <TextBlock.Effect>
+                        <DropShadowEffect BlurRadius="3" Direction="315" ShadowDepth="1" Opacity="0.85" Color="Black"/>
+                    </TextBlock.Effect>
+                </TextBlock>
+            </StackPanel>
+        </Grid>
+
+        <!-- Expanded card -->
+        <Border x:Name="IconExpandedCard"
+                Visibility="Collapsed"
+                Opacity="0"
+                CornerRadius="8"
+                Background="#F21F1F1F"
+                BorderBrush="#1FFFFFFF"
+                BorderThickness="1"
+                RenderTransformOrigin="0.5,0.5">
+            <Border.RenderTransform>
+                <ScaleTransform x:Name="IconExpandedScale" ScaleX="1" ScaleY="1" />
+            </Border.RenderTransform>
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+
+                <!-- Header -->
+                <Grid x:Name="HeaderGrid" Grid.Row="0" Margin="10,8,8,6" Background="Transparent" MouseRightButtonUp="FolderMenu_MouseRightButtonUp">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <Border x:Name="BackButton" Grid.Column="0" Style="{StaticResource CardButton}" Margin="0,0,4,0" Visibility="Collapsed"
+                            MouseLeftButtonUp="BackButton_Click" ToolTip="Atrás">
+                        <ui:SymbolIcon Symbol="ArrowLeft20" FontSize="15" Foreground="#C8FFFFFF" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+
+                    <StackPanel x:Name="TitlePanel" Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="4,0,0,0">
+                        <TextBlock x:Name="IconExpandedTitle"
+                                   FontSize="14"
+                                   FontFamily="Segoe UI Semibold"
+                                   Foreground="#F2FFFFFF"
+                                   VerticalAlignment="Center"
+                                   MaxWidth="200"
+                                   TextTrimming="CharacterEllipsis"/>
+                        <TextBlock x:Name="ItemCountText"
+                                   FontSize="12"
+                                   Foreground="#80FFFFFF"
+                                   Margin="8,1,0,0"
+                                   VerticalAlignment="Center"/>
+                    </StackPanel>
+
+                    <!-- Search field: an underline next to the title. The magnifier button slides in
+                         from the right to sit at its start (the left margin is its landing spot). -->
+                    <Border Grid.Column="2" x:Name="SearchBar" Visibility="Hidden"
+                            Margin="40,0,6,0" Height="24" VerticalAlignment="Center"
+                            BorderBrush="#59FFFFFF" BorderThickness="0,0,0,1"
+                            RenderTransformOrigin="0,0.5">
+                        <Border.RenderTransform>
+                            <ScaleTransform x:Name="SearchBarScale" ScaleX="1" ScaleY="1"/>
+                        </Border.RenderTransform>
+                        <TextBox x:Name="FilterTextBox"
+                                 Style="{x:Null}"
+                                 Background="Transparent"
+                                 BorderThickness="0"
+                                 Padding="2,0"
+                                 Foreground="White"
+                                 CaretBrush="White"
+                                 FontSize="12"
+                                 VerticalContentAlignment="Center"
+                                 TextChanged="FilterTextBox_TextChanged"
+                                 KeyDown="FilterTextBox_KeyDown"/>
+                    </Border>
+
+                    <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center">
+                        <Border x:Name="SearchButton" Style="{StaticResource CardButton}" MouseLeftButtonUp="SearchButton_Click" ToolTip="Buscar">
+                            <Border.RenderTransform>
+                                <TranslateTransform x:Name="SearchButtonShift" X="0"/>
+                            </Border.RenderTransform>
+                            <ui:SymbolIcon Symbol="Search20" FontSize="15" Foreground="#C8FFFFFF" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <Border x:Name="MoveButton" Style="{StaticResource CardButton}" Cursor="SizeAll" MouseLeftButtonDown="MoveButton_MouseLeftButtonDown" ToolTip="Arrastrar para mover">
+                            <ui:SymbolIcon Symbol="ArrowMove20" FontSize="15" Foreground="#C8FFFFFF" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <Border Style="{StaticResource CardButton}" MouseLeftButtonUp="SettingsButton_Click" ToolTip="Configuración">
+                            <ui:SymbolIcon Symbol="Settings20" FontSize="15" Foreground="#C8FFFFFF" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <Border Style="{StaticResource CardButton}" MouseLeftButtonUp="CloseButton_Click" ToolTip="Cerrar">
+                            <ui:SymbolIcon Symbol="Dismiss20" FontSize="15" Foreground="#C8FFFFFF" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                    </StackPanel>
+                </Grid>
+
+                <!-- Divider between header and content -->
+                <Rectangle Grid.Row="1" Height="1" Fill="#14FFFFFF" VerticalAlignment="Top" IsHitTestVisible="False"/>
+
+                <!-- Items -->
+                <ScrollViewer Grid.Row="1"
+                              x:Name="ItemsScrollViewer"
+                              PreviewMouseWheel="ItemsScrollViewer_PreviewMouseWheel"
+                              Margin="6,6,4,8"
+                              Focusable="False"
+                              HorizontalScrollBarVisibility="Disabled"
+                              VerticalScrollBarVisibility="Auto">
+                    <ItemsControl x:Name="ItemsList"
+                                  ItemTemplate="{StaticResource AppItemTemplate}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel HorizontalAlignment="Left" VerticalAlignment="Top"/>
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                    </ItemsControl>
+                </ScrollViewer>
+
+                <!-- Shown when the folder is empty or gone -->
+                <StackPanel Grid.Row="1" x:Name="EmptyStatePanel" Visibility="Collapsed"
+                            HorizontalAlignment="Center" VerticalAlignment="Center" Margin="24">
+                    <TextBlock x:Name="EmptyStateText" Foreground="#99FFFFFF" FontSize="13" TextAlignment="Center" TextWrapping="Wrap"/>
+                    <ui:Button x:Name="PickFolderButton" Content="Elegir carpeta…" Margin="0,12,0,0" HorizontalAlignment="Center"
+                               Visibility="Collapsed" Click="PickFolderButton_Click"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>
