@@ -152,6 +152,5 @@ namespace FolderFrame.Core
             foreach (var w in Windows) w.KeepBehind();
         }
 
-        public bool AnyBusy => Windows.Any(w => w.IsBusy);
     }
 }

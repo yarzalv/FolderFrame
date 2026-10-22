@@ -23,7 +23,6 @@ namespace FolderFrame
         public static FolderController Controller { get; private set; } = null!;
 
         private SystemLifecycleManager? _lifecycleManager;
-        private DispatcherTimer? _watchdog;
         private LowLevelMouseHook? _mouseHook;
         private DateTime _lastDoubleClickTime = DateTime.MinValue;
         private SettingsWindow? _settingsWindow;
@@ -162,7 +161,6 @@ namespace FolderFrame
             AppLogger.Log("[MainWindow] Exit from tray.");
             try
             {
-                _watchdog?.Stop();
                 _lifecycleManager?.Dispose();
                 Controller.SaveAll();
             }
@@ -219,16 +217,9 @@ namespace FolderFrame
             _lifecycleManager.SystemShuttingDown += () => Dispatcher.Invoke(() => Controller.SaveAll());
             _lifecycleManager.Initialize();
 
+            // Nothing polls in the background: folders react only to system events (display,
+            // session and Explorer changes above) and to the desktop gaining or losing focus.
             StartForegroundHook();
-
-            // Cheap health check: recreate a folder window if its handle died
-            _watchdog = new DispatcherTimer(DispatcherPriority.Background) { Interval = TimeSpan.FromSeconds(5) };
-            _watchdog.Tick += (_, _) =>
-            {
-                if (Controller.AnyBusy) return;
-                if (Controller.Windows.Any(w => !w.IsHandleAlive)) Controller.RefreshWindows();
-            };
-            _watchdog.Start();
         }
 
         protected override void OnClosing(CancelEventArgs e)
@@ -280,7 +271,6 @@ namespace FolderFrame
         {
             if (_foregroundHook != IntPtr.Zero) UnhookWinEvent(_foregroundHook);
             _foregroundFollowUp?.Stop();
-            _watchdog?.Stop();
             _lifecycleManager?.Dispose();
             StopMouseHook();
             base.OnClosed(e);

@@ -124,8 +124,6 @@ namespace FolderFrame
             // Files load in Window_Loaded: thumbnails need the window's DPI to be sharp
         }
 
-        public bool IsBusy => _isExpanded || _isAnimating || _isDragging || _dragMoving;
-
         public bool IsHandleAlive
         {
             get
