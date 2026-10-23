@@ -625,6 +625,10 @@ namespace FolderFrame
             leftPx = Math.Max(workArea.Left + margin, Math.Min(leftPx, workArea.Right - wPx - margin));
             topPx = Math.Max(workArea.Top + margin, Math.Min(topPx, workArea.Bottom - hPx - margin));
 
+            // Keep WPF's own idea of the bounds in step with the real ones: when they drifted apart
+            // (typically right after logon), WPF's pending resize put the card back at the icon's corner
+            Left = leftPx / scale;
+            Top = topPx / scale;
             Width = targetW;
             Height = targetH;
             _expandScale = scale;
@@ -632,6 +636,17 @@ namespace FolderFrame
             // all apps, and NOT activated (opening on hover must not take the keyboard from the app
             // you're typing in). Clicking the card raises and activates it (BringCardToFront).
             SetZOrder(WindowAboveFolderStack(), leftPx, topPx, wPx, hPx, moveAndSize: true, extraFlags: SWP_SHOWWINDOW);
+            int placeGeneration = _animGeneration + 1;
+            Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () =>
+            {
+                // Once WPF has done its layout, make sure it didn't move the card somewhere else
+                if (placeGeneration != _animGeneration || (!_isExpanded && !_isAnimating)) return;
+                if (GetWindowRect(h, out RECT now) && (now.Left != leftPx || now.Top != topPx || now.Right - now.Left != wPx || now.Bottom - now.Top != hPx))
+                {
+                    AppLogger.Log($"[FolderWindow:{Config.DisplayTitle}] Card moved to px ({now.Left},{now.Top}) {now.Right - now.Left}x{now.Bottom - now.Top}; put back at ({leftPx},{topPx}) {wPx}x{hPx}.");
+                    SetWindowPos(h, IntPtr.Zero, leftPx, topPx, wPx, hPx, SWP_NOZORDER | SWP_NOACTIVATE);
+                }
+            });
             // Only a *change* of foreground window after this point means the user switched app
             _foregroundAtExpand = GetForegroundWindow();
 
