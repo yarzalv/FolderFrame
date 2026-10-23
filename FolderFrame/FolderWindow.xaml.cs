@@ -613,9 +613,17 @@ namespace FolderFrame
             int iconCenterX = _hasAnchorRectPx ? (_anchorRectPx.Left + _anchorRectPx.Right) / 2 : (int)Math.Round((Config.PosX + IconWidth / 2) * scale);
             int iconCenterY = _hasAnchorRectPx ? (_anchorRectPx.Top + _anchorRectPx.Bottom) / 2 : (int)Math.Round((Config.PosY + IconHeight / 2) * scale);
 
-            // Centered on the icon, clamped to the icon's work area
-            int leftPx = Math.Max(workArea.Left + margin, Math.Min(iconCenterX - wPx / 2, workArea.Right - wPx - margin));
-            int topPx = Math.Max(workArea.Top + margin, Math.Min(iconCenterY - hPx / 2, workArea.Bottom - hPx - margin));
+            int iconLeft = _hasAnchorRectPx ? _anchorRectPx.Left : (int)Math.Round(Config.PosX * scale);
+            int iconTop = _hasAnchorRectPx ? _anchorRectPx.Top : (int)Math.Round(Config.PosY * scale);
+            int iconRight = _hasAnchorRectPx ? _anchorRectPx.Right : iconLeft + (int)Math.Round(IconWidth * scale);
+            int iconBottom = _hasAnchorRectPx ? _anchorRectPx.Bottom : iconTop + (int)Math.Round(IconHeight * scale);
+
+            // Grow from the icon toward the side with more free space (it stays under the card,
+            // so hovering keeps it open), then clamp to the icon's work area
+            int leftPx = workArea.Right - iconLeft >= iconRight - workArea.Left ? iconLeft : iconRight - wPx;
+            int topPx = workArea.Bottom - iconTop >= iconBottom - workArea.Top ? iconTop : iconBottom - hPx;
+            leftPx = Math.Max(workArea.Left + margin, Math.Min(leftPx, workArea.Right - wPx - margin));
+            topPx = Math.Max(workArea.Top + margin, Math.Min(topPx, workArea.Bottom - hPx - margin));
 
             Width = targetW;
             Height = targetH;
