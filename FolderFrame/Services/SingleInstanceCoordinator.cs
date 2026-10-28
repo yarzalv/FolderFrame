@@ -1,6 +1,9 @@
 using FolderFrame.Util;
 using System;
 using System.Diagnostics;
+using System.Linq;
+using System.Security.AccessControl;
+using System.Security.Principal;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -27,12 +30,39 @@ namespace FolderFrame.Services
 
             try
             {
-                _mutex = new Mutex(true, mutexName, out bool createdNew);
+                // Open to the whole user, whatever the elevation: a copy started as administrator and
+                // one started normally must see each other's mutex, or both would run.
+                var user = WindowsIdentity.GetCurrent().User!;
+                var mutexSecurity = new MutexSecurity();
+                mutexSecurity.AddAccessRule(new MutexAccessRule(user, MutexRights.FullControl, AccessControlType.Allow));
+
+                bool createdNew;
+                try
+                {
+                    _mutex = MutexAcl.Create(true, mutexName, out createdNew, mutexSecurity);
+                }
+                catch (UnauthorizedAccessException)
+                {
+                    // The name exists but belongs to a copy we may not open: that copy is running
+                    AppLogger.Log($"[SingleInstanceCoordinator] Mutex {mutexName} exists and is not accessible; treating it as running.");
+                    return false;
+                }
                 AppLogger.Log($"[SingleInstanceCoordinator] TryAcquire: createdNew={createdNew}, mutex={mutexName}");
+
+                // Safety net for copies that don't share the mutex (older versions, other names):
+                // the earliest FolderFrame process of this session keeps running, the rest leave
+                if (createdNew && AnotherInstanceIsOlder())
+                {
+                    AppLogger.Log("[SingleInstanceCoordinator] An older FolderFrame process is already running in this session.");
+                    createdNew = false;
+                }
+
                 if (createdNew)
                 {
                     _hasOwnership = true;
-                    _wakeEvent = new EventWaitHandle(false, EventResetMode.AutoReset, eventName);
+                    var eventSecurity = new EventWaitHandleSecurity();
+                    eventSecurity.AddAccessRule(new EventWaitHandleAccessRule(user, EventWaitHandleRights.FullControl, AccessControlType.Allow));
+                    _wakeEvent = EventWaitHandleAcl.Create(false, EventResetMode.AutoReset, eventName, out _, eventSecurity);
                     _cts = new CancellationTokenSource();
 
                     // Start background listener for wakeup signals from subsequent launches
@@ -71,6 +101,28 @@ namespace FolderFrame.Services
                 // In case of any security / sandbox exception, default to allowing execution
                 return true;
             }
+        }
+
+        /// <summary>True when another FolderFrame process of this session started before this one.</summary>
+        private static bool AnotherInstanceIsOlder()
+        {
+            try
+            {
+                using var me = Process.GetCurrentProcess();
+                foreach (var other in Process.GetProcessesByName(me.ProcessName))
+                {
+                    using (other)
+                    {
+                        if (other.Id == me.Id || other.SessionId != me.SessionId) continue;
+                        if (other.StartTime < me.StartTime || (other.StartTime == me.StartTime && other.Id < me.Id)) return true;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                AppLogger.Log($"[SingleInstanceCoordinator] Process check failed: {ex.Message}");
+            }
+            return false;
         }
 
         private void ListenForWakeup(CancellationToken token)
